@@ -48,8 +48,9 @@ app.post('/api/pins/:id/vote', async (req, res) => {
 });
 
 // Corrige la ruta estática al final de tu server.js para que apunte bien en Docker:
-const path = require('path');
+//const path = require('path');
 
+// Deja el bloque de cierre simplemente así (sin volver a declarar const path):
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 app.use((req, res) => {
