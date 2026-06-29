@@ -141,10 +141,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // URL de enlace con el contenedor de tu API Node.js
-        // Detecta automáticamente si estás en local o en el servidor de Render
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3000/api'
-    : 'https://pines-venezuela-production.up.railway.app/api'; // <--- Tu URL real de Railway
+            ? 'http://localhost:8080/api' // Ajustado al puerto 8080 de producción local para consistencia
+            : 'https://pines-venezuela-production.up.railway.app/api'; 
         
         // Inicializar mapa centrado en el eje Caracas - La Guaira
         const map = L.map('map', { zoomControl: false }).setView([10.5000, -66.8800], 12);
@@ -212,17 +211,15 @@
 
             const coordenadas = marcadorTemporal.getLatLng();
             const tipo = document.getElementById('pop-type').value;
-            const descripcion = document.getElementById('pop-desc').value;
-
-            // Formatear texto para la alerta visual de confirmación
+            const description = document.getElementById('pop-desc').value;
             const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
 
-            const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${descripcion || 'Ninguno'}`);
+            const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
             
             if (seguro) {
                 const payload = {
                     type: tipo,
-                    description: descripcion,
+                    description: description,
                     lng: coordenadas.lng,
                     lat: coordenadas.lat
                 };
@@ -239,7 +236,7 @@
                 .then(() => {
                     map.removeLayer(marcadorTemporal);
                     marcadorTemporal = null;
-                    cargarPines();
+                    cargarPines(); // Recarga limpia de marcadores actualizados
                 })
                 .catch(() => alert('Error al intentar conectar con el servidor. Inténtalo de nuevo cuando mejore la señal.'));
             }
@@ -248,8 +245,24 @@
         // 3. CARGAR PINES DESDE MYSQL CON EMOJIS NATIVOS
         function cargarPines() {
             fetch(`${API_URL}/pins`)
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error('Error en el servidor');
+                    return res.json();
+                })
                 .then(pines => {
+                    // Validación de seguridad para evitar rupturas de flujo
+                    if (!Array.isArray(pines)) {
+                        console.error("Los datos de los pines no son un arreglo válido:", pines);
+                        return;
+                    }
+
+                    // LIMPIAR TODOS LOS MARCADORES VIEJOS ANTES DE RE-RENDERIZAR
+                    map.eachLayer((layer) => {
+                        if (layer instanceof L.Marker && layer !== marcadorTemporal) {
+                            map.removeLayer(layer);
+                        }
+                    });
+
                     pines.forEach(pin => {
                         const emoji = obtenerEmoji(pin.type);
                         const claseColor = obtenerClaseColor(pin.type);
@@ -294,12 +307,7 @@
             })
             .then(res => {
                 if (!res.ok) throw new Error();
-                // Limpiar el mapa antes de recargar
-                map.eachLayer((layer) => {
-                    if (layer instanceof L.Marker && layer !== marcadorTemporal) {
-                        map.removeLayer(layer);
-                    }
-                });
+                // Se invoca cargarPines estrictamente DENTRO del flujo de éxito asíncrono
                 cargarPines();
             })
             .catch(() => alert('No se pudo registrar tu voto. Conexión de datos inestable.'));
