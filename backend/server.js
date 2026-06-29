@@ -7,9 +7,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Servir los archivos estáticos desde la carpeta frontend
-app.use(express.static(path.resolve(__dirname, '../frontend')));
-
 // 2. Configuración e inicialización de la Base de Datos
 const dbConfig = {
     host: process.env.DB_HOST || 'db',
@@ -50,16 +47,22 @@ app.post('/api/pins/:id/vote', async (req, res) => {
     // ... Tu lógica actual de votación permanece idéntica
 });
 
-// 4. CAPTURA TOTAL (Siempre al final, actúa como red de seguridad para el frontend)
-app.use((req, res, next) => {
-    // Si por algún motivo una petición de la API llega aquí, NO le sirvas el index.html
+// Corrige la ruta estática al final de tu server.js para que apunte bien en Docker:
+const path = require('path');
+
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+app.use((req, res) => {
     if (req.path.startsWith('/api')) {
         return res.status(404).json({ error: `Endpoint de API no encontrado: ${req.method} ${req.path}` });
     }
-    // Para todo lo demás (rutas de navegación), sirve el frontend
     res.sendFile(path.resolve(__dirname, '../frontend/index.html'));
 });
 
-// 5. Encendido del Servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor de emergencia corriendo en puerto ${PORT}`));
+// Asegúrate de que tu constante de puerto esté definida ASÍ:
+const PORT = process.env.PORT || 8080;
+
+// Y que tu app escuche esa variable:
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
