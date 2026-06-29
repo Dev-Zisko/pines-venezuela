@@ -143,8 +143,8 @@
         // URL de enlace con el contenedor de tu API Node.js
         // Detecta automáticamente si estás en local o en el servidor de Render
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000/api'
-            : 'https://tu-backend-sismo.onrender.com/api'; // <--- Aquí pondrás la URL que te dé Render más adelante
+    ? 'http://localhost:3000/api'
+    : 'https://pines-venezuela-production.up.railway.app/api'; // <--- Tu URL real de Railway
         
         // Inicializar mapa centrado en el eje Caracas - La Guaira
         const map = L.map('map', { zoomControl: false }).setView([10.5000, -66.8800], 12);

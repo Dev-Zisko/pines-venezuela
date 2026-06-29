@@ -6,6 +6,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const path = require('path');
+// Servir archivos estáticos de la carpeta frontend
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Ruta comodín para enviar el index.html si entran a la raíz
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
 // Configuración de la conexión a MySQL
 const dbConfig = {
     host: process.env.DB_HOST || 'db',
