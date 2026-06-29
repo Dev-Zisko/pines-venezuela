@@ -51,7 +51,12 @@ app.post('/api/pins/:id/vote', async (req, res) => {
 });
 
 // 4. CAPTURA TOTAL (Siempre al final, actúa como red de seguridad para el frontend)
-app.use((req, res) => {
+app.use((req, res, next) => {
+    // Si por algún motivo una petición de la API llega aquí, NO le sirvas el index.html
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: `Endpoint de API no encontrado: ${req.method} ${req.path}` });
+    }
+    // Para todo lo demás (rutas de navegación), sirve el frontend
     res.sendFile(path.resolve(__dirname, '../frontend/index.html'));
 });
 
