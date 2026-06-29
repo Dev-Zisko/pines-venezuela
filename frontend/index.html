@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SismoAlert VE - Mapa Comunitario de Emergencia</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            width: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            overflow: hidden;
+        }
+        
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            z-index: 1;
+        }
+
+        /* Banner informativo superior en Español */
+        .info-banner {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none;
+            text-align: center;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Marcadores Comunitarios Circulares */
+        .marcador-comunitario {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            width: 36px !important;
+            height: 36px !important;
+            font-size: 20px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+            border: 2px solid white;
+            transition: transform 0.2s;
+        }
+        .marcador-comunitario:hover {
+            transform: scale(1.15);
+        }
+
+        /* Códigos de Color por Prioridad */
+        .bg-critico { background-color: #ef4444; }    /* Rojo: Peligro o Rescate */
+        .bg-suministro { background-color: #3b82f6; }  /* Azul: Recursos Vitales */
+        .bg-logistica { background-color: #10b981; }   /* Verde: Infraestructura y Apoyo */
+
+        /* Estilos del Formulario dentro del Popup */
+        .popup-form {
+            font-family: sans-serif; 
+            width: 240px;
+            margin: 4px;
+        }
+        .popup-form h4 {
+            margin: 0 0 6px 0; 
+            color: #e11d48;
+            font-size: 15px;
+        }
+        .popup-form p {
+            font-size: 11px; 
+            color: #64748b; 
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+        }
+        .form-label {
+            display: block;
+            font-weight: bold; 
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #1e293b;
+        }
+        .form-input {
+            width: 100%; 
+            padding: 6px; 
+            margin-bottom: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 12px;
+        }
+        .btn-submit {
+            background: #0284c7; 
+            color: white; 
+            border: none; 
+            padding: 8px; 
+            width: 100%; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .btn-submit:hover {
+            background: #0369a1;
+        }
+
+        /* Botones de Validación Comunitaria */
+        .vote-container {
+            display: flex; 
+            justify-content: space-between;
+            margin-top: 8px;
+            gap: 8px;
+        }
+        .btn-vote {
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .btn-vote:hover {
+            background: #f1f5f9;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-banner">📍 Toca cualquier punto del mapa para reportar una situación</div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // URL de enlace con el contenedor de tu API Node.js
+        // Detecta automáticamente si estás en local o en el servidor de Render
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://tu-backend-sismo.onrender.com/api'; // <--- Aquí pondrás la URL que te dé Render más adelante
+        
+        // Inicializar mapa centrado en el eje Caracas - La Guaira
+        const map = L.map('map', { zoomControl: false }).setView([10.5000, -66.8800], 12);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        
+        // Capa base de OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap colaboradores'
+        }).addTo(map);
+
+        // Intentar geolocalizar el dispositivo del ciudadano al entrar
+        map.locate({setView: true, maxZoom: 14});
+
+        let marcadorTemporal = null;
+
+        // 1. CAPTURAR CLIC EN EL MAPA PARA COLOCAR UN MARCADOR TEMPORAL
+        map.on('click', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            if (marcadorTemporal) {
+                map.removeLayer(marcadorTemporal);
+            }
+
+            // Crear marcador de edición arrastrable
+            marcadorTemporal = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+            // Formulario interactivo con claves e interfaz 100% en Español
+            const htmlFormulario = `
+                <div class="popup-form">
+                    <h4>Reportar Situación</h4>
+                    <p>El pin se fijará en este punto. Puedes arrastrar el marcador para corregir la ubicación exacta si es necesario.</p>
+                    
+                    <span class="form-label">Tipo de Reporte:</span>
+                    <select id="pop-type" class="form-input">
+                        <option value="edificio-destruido">🏢 Edificio Destruido</option>
+                        <option value="insumos-medicos-disponibles">🏥 Insumos Médicos Disponibles</option>
+                        <option value="bebidas-disponibles">💧 Bebidas Disponibles</option>
+                        <option value="comidas-disponibles">📦 Comidas Disponibles</option>
+                        <option value="maquina-pesada-trabajando">🚧 Máquina Pesada Trabajando</option>
+                        <option value="personas-de-rescate-trabajando">🚨 Personas de Rescate Trabajando</option>
+                        <option value="refugios-disponibles">⛺ Refugios Disponibles</option>
+                        <option value="posibilidad-de-personas-atrapadas">⚠️ Posibilidad de Personas Atrapadas</option>
+                        <option value="punto-de-carga-electrica">🔋 Punto de Carga Eléctrica</option>
+                        <option value="senal-movil-o-wifi">📶 Señal Móvil o Wi-Fi</option>
+                        <option value="via-bloqueada-o-derrumbe">⛔ Vía Bloqueada o Derrumbe</option>
+                        <option value="voluntarios-necesarios">🤝 Voluntarios Necesarios</option>
+                        <option value="personas-desaparecidas">🔍 Reporte de Persona Desaparecida</option>
+                    </select>
+
+                    <span class="form-label">Detalles Adicionales:</span>
+                    <textarea id="pop-desc" class="form-input" rows="2" placeholder="Ej: Esquina bloqueada por escombros, grietas graves..." maxlength="160"></textarea>
+                    
+                    <button onclick="confirmarYEnviar()" class="btn-submit">📍 Registrar Reporte</button>
+                </div>
+            `;
+
+            marcadorTemporal.bindPopup(htmlFormulario, { closeOnClick: false }).openPopup();
+        });
+
+        // 2. SEGUNDO PASO: CONFIRMACIÓN Y ENVÍO A MYSQL
+        function confirmarYEnviar() {
+            if (!marcadorTemporal) return;
+
+            const coordenadas = marcadorTemporal.getLatLng();
+            const tipo = document.getElementById('pop-type').value;
+            const descripcion = document.getElementById('pop-desc').value;
+
+            // Formatear texto para la alerta visual de confirmación
+            const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
+
+            const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${descripcion || 'Ninguno'}`);
+            
+            if (seguro) {
+                const payload = {
+                    type: tipo,
+                    description: descripcion,
+                    lng: coordenadas.lng,
+                    lat: coordenadas.lat
+                };
+
+                fetch(`${API_URL}/pins`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error();
+                    return res.json();
+                })
+                .then(() => {
+                    map.removeLayer(marcadorTemporal);
+                    marcadorTemporal = null;
+                    cargarPines();
+                })
+                .catch(() => alert('Error al intentar conectar con el servidor. Inténtalo de nuevo cuando mejore la señal.'));
+            }
+        }
+
+        // 3. CARGAR PINES DESDE MYSQL CON EMOJIS NATIVOS
+        function cargarPines() {
+            fetch(`${API_URL}/pins`)
+                .then(res => res.json())
+                .then(pines => {
+                    pines.forEach(pin => {
+                        const emoji = obtenerEmoji(pin.type);
+                        const claseColor = obtenerClaseColor(pin.type);
+                        const textoTipo = pin.type.replace(/-/g, ' ').toUpperCase();
+                        
+                        // Generar DivIcon personalizado con CSS
+                        const iconoPersonalizado = L.divIcon({
+                            html: `<div>${emoji}</div>`,
+                            className: `marcador-comunitario ${claseColor}`,
+                            iconSize: [36, 36],
+                            iconAnchor: [18, 18],
+                            popupAnchor: [0, -18]
+                        });
+
+                        const popupContent = `
+                            <div style="font-family: sans-serif; min-width: 210px;">
+                                <strong style="color:#0f172a; font-size:13px;">${emoji} ${textoTipo}</strong>
+                                <p style="font-size:12px; color:#334155; margin: 6px 0 10px 0; line-height:1.4;">${pin.description || 'Sin descripción adicional'}</p>
+                                <div style="font-size:10px; color:#94a3b8; margin-bottom:4px;">
+                                    Reportado: ${new Date(pin.created_at).toLocaleDateString('es-VE')} - ${new Date(pin.created_at).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                                <hr style="border:0; border-top:1px solid #e2e8f0; margin:0;">
+                                <div class="vote-container">
+                                    <button class="btn-vote" onclick="votar(${pin.id}, 'up')">👍 Sigue Útil (${pin.votes_positive})</button>
+                                    <button class="btn-vote" style="color:#ef4444;" onclick="votar(${pin.id}, 'down')">👎 Ya no está (${pin.votes_negative})</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        L.marker([pin.lat, pin.lng], { icon: iconoPersonalizado }).addTo(map).bindPopup(popupContent);
+                    });
+                })
+                .catch(err => console.error('Error cargando los marcadores:', err));
+        }
+
+        // 4. VOTACIÓN COMUNITARIA ANÓNIMA
+        function votar(id, direction) {
+            fetch(`${API_URL}/pins/${id}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error();
+                // Limpiar el mapa antes de recargar
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.Marker && layer !== marcadorTemporal) {
+                        map.removeLayer(layer);
+                    }
+                });
+                cargarPines();
+            })
+            .catch(() => alert('No se pudo registrar tu voto. Conexión de datos inestable.'));
+        }
+
+        // HELPERS GEOGRÁFICOS EN ESPAÑOL
+        function obtenerEmoji(tipo) {
+            const emojis = {
+                'edificio-destruido': '🏢',
+                'insumos-medicos-disponibles': '🏥',
+                'bebidas-disponibles': '💧',
+                'comidas-disponibles': '📦',
+                'maquina-pesada-trabajando': '🚧',
+                'personas-de-rescate-trabajando': '🚨',
+                'refugios-disponibles': '⛺',
+                'posibilidad-de-personas-atrapadas': '⚠️',
+                'punto-de-carga-electrica': '🔋',
+                'senal-movil-o-wifi': '📶',
+                'via-bloqueada-o-derrumbe': '⛔',
+                'voluntarios-necesarios': '🤝',
+                'personas-desaparecidas': '🔍'
+            };
+            return emojis[tipo] || '📍';
+        }
+
+        function obtenerClaseColor(tipo) {
+            const criticos = [
+                'edificio-destruido', 
+                'personas-de-rescate-trabajando', 
+                'posibilidad-de-personas-atrapadas', 
+                'via-bloqueada-o-derrumbe',
+                'personas-desaparecidas'
+            ];
+            const suministros = [
+                'insumos-medicos-disponibles', 
+                'bebidas-disponibles', 
+                'comidas-disponibles', 
+                'punto-de-carga-electrica', 
+                'senal-movil-o-wifi'
+            ];
+            const logistica = [
+                'refugios-disponibles', 
+                'maquina-pesada-trabajando', 
+                'voluntarios-necesarios'
+            ];
+
+            if (criticos.includes(tipo)) return 'bg-critico';
+            if (suministros.includes(tipo)) return 'bg-suministro';
+            if (logistica.includes(tipo)) return 'bg-logistica';
+            return 'bg-suministro';
+        }
+
+        window.onload = cargarPines;
+    </script>
+</body>
+</html>

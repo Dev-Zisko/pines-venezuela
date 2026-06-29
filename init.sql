@@ -1,0 +1,15 @@
+CREATE DATABASE IF NOT EXISTS sismo_alert_ve;
+USE sismo_alert_ve;
+
+CREATE TABLE IF NOT EXISTS pins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(30) NOT NULL,
+    location POINT NOT NULL,
+    description VARCHAR(160) DEFAULT '',
+    status VARCHAR(20) DEFAULT 'active',
+    votes_positive INT DEFAULT 1,
+    votes_negative INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    SPATIAL INDEX(location)
+) ENGINE=InnoDB;

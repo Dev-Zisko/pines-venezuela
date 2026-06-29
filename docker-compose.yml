@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Servidor de Base de Datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: sismo_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: sismo_root_secure
+      MYSQL_DATABASE: sismo_alert_ve
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.shadow.d/init.sql # Ejecuta el script SQL al arrancar
+    networks:
+      - sismo_network
+
+  # Servidor API Node.js
+  backend:
+    build: ./backend
+    container_name: sismo_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: sismo_root_secure
+      DB_NAME: sismo_alert_ve
+      PORT: 3000
+    depends_on:
+      - db
+    networks:
+      - sismo_network
+
+  # Servidor Web Ligero para el Mapa Frontend
+  frontend:
+    image: nginx:alpine
+    container_name: sismo_frontend
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html # Monta tu index.html directo en Nginx
+    depends_on:
+      - backend
+    networks:
+      - sismo_network
+
+volumes:
+  mysql_data:
+
+networks:
+  sismo_network:
+    driver: bridge
