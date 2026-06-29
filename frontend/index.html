@@ -198,7 +198,7 @@
                     <span class="form-label">Detalles Adicionales:</span>
                     <textarea id="pop-desc" class="form-input" rows="2" placeholder="Ej: Esquina bloqueada por escombros, grietas graves..." maxlength="160"></textarea>
                     
-                    <button onclick="confirmarYEnviar()" class="btn-submit">📍 Registrar Reporte</button>
+                    <button type="button" onclick="confirmarYEnviar()" class="btn-submit">📍 Registrar Reporte</button>
                 </div>
             `;
 
@@ -207,16 +207,25 @@
 
         // 2. SEGUNDO PASO: CONFIRMACIÓN Y ENVÍO A MYSQL
         function confirmarYEnviar() {
-            if (!marcadorTemporal) return;
+            console.log("¡Botón presionado con éxito!"); // <-- Diagnóstico 1
+            
+            if (!marcadorTemporal) {
+                console.log("No hay marcador temporal activo");
+                return;
+            }
 
             const coordenadas = marcadorTemporal.getLatLng();
             const tipo = document.getElementById('pop-type').value;
             const description = document.getElementById('pop-desc').value;
             const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
 
+            console.log("Datos listos para enviar:", { tipo, coordenadas }); // <-- Diagnóstico 2
+
             const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
             
             if (seguro) {
+                console.log("Confirmación aceptada, lanzando fetch..."); // <-- Diagnóstico 3
+                
                 const payload = {
                     type: tipo,
                     description: description,
@@ -230,15 +239,20 @@
                     body: JSON.stringify(payload)
                 })
                 .then(res => {
+                    console.log("Respuesta del servidor recibida:", res.status);
                     if (!res.ok) throw new Error();
                     return res.json();
                 })
-                .then(() => {
+                .then((data) => {
+                    console.log("Pin guardado correctamente en la BD:", data);
                     map.removeLayer(marcadorTemporal);
                     marcadorTemporal = null;
-                    cargarPines(); // Recarga limpia de marcadores actualizados
+                    cargarPines(); 
                 })
-                .catch(() => alert('Error al intentar conectar con el servidor. Inténtalo de nuevo cuando mejore la señal.'));
+                .catch((err) => {
+                    console.error("Error en la petición POST:", err);
+                    alert('Error al intentar conectar con el servidor. Inténtalo de nuevo cuando mejore la señal.');
+                });
             }
         }
 
