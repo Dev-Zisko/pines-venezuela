@@ -141,9 +141,10 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // URL de enlace con el contenedor de tu API Node.js
+        // Detecta automáticamente si estás ejecutando en local o en producción usando rutas relativas
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:8080/api' // Ajustado al puerto 8080 de producción local para consistencia
-            : 'https://pines-venezuela-production.up.railway.app/api'; 
+            ? 'http://localhost:3000/api' 
+            : '/api'; // <-- Usa la ruta relativa del propio dominio seguro de Railway
         
         // Inicializar mapa centrado en el eje Caracas - La Guaira
         const map = L.map('map', { zoomControl: false }).setView([10.5000, -66.8800], 12);
