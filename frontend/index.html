@@ -140,28 +140,22 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // URL de enlace con el contenedor de tu API Node.js
-        // Detecta automáticamente si estás ejecutando en local o en producción usando rutas relativas
         const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:3000/api' 
-            : '/api'; // <-- Usa la ruta relativa del propio dominio seguro de Railway
+            : '/api';
         
-        // Inicializar mapa centrado en el eje Caracas - La Guaira
         const map = L.map('map', { zoomControl: false }).setView([10.5000, -66.8800], 12);
         L.control.zoom({ position: 'bottomleft' }).addTo(map);
         
-        // Capa base de OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap colaboradores'
         }).addTo(map);
 
-        // Intentar geolocalizar el dispositivo del ciudadano al entrar
         map.locate({setView: true, maxZoom: 14});
 
         let marcadorTemporal = null;
 
-        // 1. CAPTURAR CLIC EN EL MAPA PARA COLOCAR UN MARCADOR TEMPORAL
         map.on('click', function(e) {
             const lat = e.latlng.lat;
             const lng = e.latlng.lng;
@@ -170,10 +164,8 @@
                 map.removeLayer(marcadorTemporal);
             }
 
-            // Crear marcador de edición arrastrable
             marcadorTemporal = L.marker([lat, lng], { draggable: true }).addTo(map);
 
-            // Formulario interactivo con claves e interfaz 100% en Español
             const htmlFormulario = `
                 <div class="popup-form">
                     <h4>Reportar Situación</h4>
@@ -206,87 +198,80 @@
             marcadorTemporal.bindPopup(htmlFormulario, { closeOnClick: false }).openPopup();
         });
 
-        // 2. SEGUNDO PASO: CONFIRMACIÓN Y ENVÍO A MYSQL (CON SUPER DIAGNÓSTICO)
-        // 2. SEGUNDO PASO: ENVÍO ASÍNCRONO BLINDADO
-async function confirmarYEnviar() {
-    console.log("=== INICIO DEL FLUJO DE ENVÍO ===");
-    
-    if (!marcadorTemporal) {
-        console.error("❌ Error: No hay un marcador temporal activo.");
-        return;
-    }
+        async function confirmarYEnviar() {
+            console.log("=== INICIO DEL FLUJO DE ENVÍO ===");
+            
+            if (!marcadorTemporal) {
+                console.error("❌ Error: No hay un marcador temporal activo.");
+                return;
+            }
 
-    // 1. Capturar elementos inmediatamente antes de que mute el mapa
-    const elTipo = document.getElementById('pop-type');
-    const elDesc = document.getElementById('pop-desc');
-    
-    if (!elTipo) {
-        console.error("❌ Error: No se encontró el formulario en el DOM.");
-        return;
-    }
+            const elTipo = document.getElementById('pop-type');
+            const elDesc = document.getElementById('pop-desc');
+            
+            if (!elTipo) {
+                console.error("❌ Error: No se encontró el formulario en el DOM.");
+                return;
+            }
 
-    const tipo = elTipo.value;
-    const description = elDesc ? elDesc.value : "";
-    const coordenadas = marcadorTemporal.getLatLng();
-    const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
+            const tipo = elTipo.value;
+            const description = elDesc ? elDesc.value : "";
+            const coordenadas = marcadorTemporal.getLatLng();
+            const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
 
-    const URL_FINAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:3000/api/pins'
-        : window.location.origin + '/api/pins';
+            const URL_FINAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:3000/api/pins'
+                : window.location.origin + '/api/pins';
 
-    const payload = {
-        type: tipo,
-        description: description,
-        lng: coordenadas.lng,
-        lat: coordenadas.lat
-    };
+            const payload = {
+                type: tipo,
+                description: description,
+                lng: coordenadas.lng,
+                lat: coordenadas.lat
+            };
 
-    // 2. Alerta de confirmación de datos
-    const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
-    if (!seguro) {
-        console.log("🛑 Envío cancelado por el usuario.");
-        return;
-    }
+            const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
+            if (!seguro) {
+                console.log("🛑 Envío cancelado por el usuario.");
+                return;
+            }
 
-    console.log("🚀 Lanzando Fetch síncrono. Esperando al servidor...");
+            console.log("🚀 Lanzando Fetch síncrono. Esperando al servidor...");
 
-    // 3. Bloqueamos el flujo con try/catch usando await para que no se destruya la petición
-    try {
-        const respuesta = await fetch(URL_FINAL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+            try {
+                const respuesta = await fetch(URL_FINAL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-        console.log(`📡 Servidor respondió con estatus: ${respuesta.status}`);
+                console.log(`📡 Servidor respondió con estatus: ${respuesta.status}`);
 
-        if (!respuesta.ok) {
-            const errorTexto = await respuesta.text();
-            throw new Error(`Código ${respuesta.status}: ${errorTexto}`);
+                if (!respuesta.ok) {
+                    const errorTexto = await respuesta.text();
+                    throw new Error(`Código ${respuesta.status}: ${errorTexto}`);
+                }
+
+                const data = await respuesta.json();
+                console.log("✅ ¡ÉXITO TOTAL! Guardado en Base de Datos:", data);
+
+                if (marcadorTemporal) {
+                    map.removeLayer(marcadorTemporal);
+                    marcadorTemporal = null;
+                }
+                
+                alert("📍 ¡Reporte registrado con éxito!");
+                cargarPines();
+
+            } catch (err) {
+                console.error("❌ CRÍTICO - Error atrapado en el flujo de red:", err);
+                alert(`Error al guardar: ${err.message}`);
+            }
         }
 
-        const data = await respuesta.json();
-        console.log("✅ ¡ÉXITO TOTAL! Guardado en Base de Datos:", data);
-
-        // 4. SOLO SI LA RED RESPONDE CON ÉXITO, LIMPIAMOS EL MAPA
-        if (marcadorTemporal) {
-            map.removeLayer(marcadorTemporal);
-            marcadorTemporal = null;
-        }
-        
-        alert("📍 ¡Reporte registrado con éxito!");
-        cargarPines(); // Recarga los pines nuevos
-
-    } catch (err) {
-        console.error("❌ CRÍTICO - Error atrapado en el flujo de red:", err);
-        alert(`Error al guardar: ${err.message}`);
-    }
-}
-
-        // 3. CARGAR PINES DESDE MYSQL CON EMOJIS NATIVOS
         function cargarPines() {
             fetch(`${API_URL}/pins`)
                 .then(res => {
@@ -294,13 +279,11 @@ async function confirmarYEnviar() {
                     return res.json();
                 })
                 .then(pines => {
-                    // Validación de seguridad para evitar rupturas de flujo
                     if (!Array.isArray(pines)) {
                         console.error("Los datos de los pines no son un arreglo válido:", pines);
                         return;
                     }
 
-                    // LIMPIAR TODOS LOS MARCADORES VIEJOS ANTES DE RE-RENDERIZAR
                     map.eachLayer((layer) => {
                         if (layer instanceof L.Marker && layer !== marcadorTemporal) {
                             map.removeLayer(layer);
@@ -312,7 +295,6 @@ async function confirmarYEnviar() {
                         const claseColor = obtenerClaseColor(pin.type);
                         const textoTipo = pin.type.replace(/-/g, ' ').toUpperCase();
                         
-                        // Generar DivIcon personalizado con CSS
                         const iconoPersonalizado = L.divIcon({
                             html: `<div>${emoji}</div>`,
                             className: `marcador-comunitario ${claseColor}`,
@@ -321,6 +303,7 @@ async function confirmarYEnviar() {
                             popupAnchor: [0, -18]
                         });
 
+                        // Corregido: Se mapean los strings exactos del backend ('positive' y 'negative')
                         const popupContent = `
                             <div style="font-family: sans-serif; min-width: 210px;">
                                 <strong style="color:#0f172a; font-size:13px;">${emoji} ${textoTipo}</strong>
@@ -330,8 +313,8 @@ async function confirmarYEnviar() {
                                 </div>
                                 <hr style="border:0; border-top:1px solid #e2e8f0; margin:0;">
                                 <div class="vote-container">
-                                    <button class="btn-vote" onclick="votar(${pin.id}, 'up')">👍 Sigue Útil (${pin.votes_positive})</button>
-                                    <button class="btn-vote" style="color:#ef4444;" onclick="votar(${pin.id}, 'down')">👎 Ya no está (${pin.votes_negative})</button>
+                                    <button class="btn-vote" onclick="votar(${pin.id}, 'positive')">👍 Sigue Útil (${pin.votes_positive})</button>
+                                    <button class="btn-vote" style="color:#ef4444;" onclick="votar(${pin.id}, 'negative')">👎 Ya no está (${pin.votes_negative})</button>
                                 </div>
                             </div>
                         `;
@@ -342,22 +325,30 @@ async function confirmarYEnviar() {
                 .catch(err => console.error('Error cargando los marcadores:', err));
         }
 
-        // 4. VOTACIÓN COMUNITARIA ANÓNIMA
-        function votar(id, direction) {
-            fetch(`${API_URL}/pins/${id}/vote`, {
+        // Corregido: Envía la propiedad exacta 'voteType' con los valores esperados por Express
+        function votar(id, tipoVoto) {
+            const URL_VOTO = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? `http://localhost:3000/api/pins/${id}/vote`
+                : `${window.location.origin}/api/pins/${id}/vote`;
+
+            fetch(URL_VOTO, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ direction })
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ voteType: tipoVoto })
             })
             .then(res => {
-                if (!res.ok) throw new Error();
-                // Se invoca cargarPines estrictamente DENTRO del flujo de éxito asíncrono
+                if (!res.ok) throw new Error('Error en el estado de la respuesta del servidor');
                 cargarPines();
             })
-            .catch(() => alert('No se pudo registrar tu voto. Conexión de datos inestable.'));
+            .catch((err) => {
+                console.error("Error al procesar el voto:", err);
+                alert('No se pudo registrar tu voto. Conexión de datos inestable.');
+            });
         }
 
-        // HELPERS GEOGRÁFICOS EN ESPAÑOL
         function obtenerEmoji(tipo) {
             const emojis = {
                 'edificio-destruido': '🏢',
@@ -385,7 +376,7 @@ async function confirmarYEnviar() {
                 'via-bloqueada-o-derrumbe',
                 'personas-desaparecidas'
             ];
-            const suministros = [
+            const supplies = [
                 'insumos-medicos-disponibles', 
                 'bebidas-disponibles', 
                 'comidas-disponibles', 
@@ -399,7 +390,7 @@ async function confirmarYEnviar() {
             ];
 
             if (criticos.includes(tipo)) return 'bg-critico';
-            if (suministros.includes(tipo)) return 'bg-suministro';
+            if (supplies.includes(tipo)) return 'bg-suministro';
             if (logistica.includes(tipo)) return 'bg-logistica';
             return 'bg-suministro';
         }
