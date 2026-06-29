@@ -10,8 +10,8 @@ const path = require('path');
 // Servir archivos estáticos de la carpeta frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Ruta comodín para enviar el index.html si entran a la raíz
-app.get('*', (req, res) => {
+// Al final de todas tus rutas de la API (/api/pins, etc.)
+app.use((req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
