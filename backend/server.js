@@ -7,12 +7,13 @@ app.use(cors());
 app.use(express.json());
 
 const path = require('path');
-// Servir archivos estáticos de la carpeta frontend
-app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Al final de todas tus rutas de la API (/api/pins, etc.)
-app.use((req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+// Servir la carpeta frontend de forma estática usando ruta absoluta
+app.use(express.static(path.resolve(__dirname, '../frontend')));
+
+// Capturar el resto de rutas y servir el index.html usando ruta absoluta
+app.get('(.*)', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../frontend/index.html'));
 });
 
 // Configuración de la conexión a MySQL

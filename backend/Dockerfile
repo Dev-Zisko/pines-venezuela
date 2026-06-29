@@ -1,14 +1,14 @@
 FROM node:20-alpine
 
+# En tu backend/Dockerfile, asegúrate de estar parado en /app
 WORKDIR /app
 
-# Copiar paquetes e instalar dependencias limpiamente
-COPY package*.json ./
+# Copia el package del backend e instala
+COPY backend/package*.json ./
 RUN npm install --only=production
 
-# Copiar el código del servidor
+# COPIA TODO EL PROYECTO (incluyendo la carpeta frontend que está arriba)
 COPY . .
 
-EXPOSE 3000
-
-CMD ["node", "server.js"]
+EXPOSE 8080
+CMD ["node", "backend/server.js"]
