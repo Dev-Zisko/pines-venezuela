@@ -8,11 +8,16 @@ app.use(express.json());
 
 const path = require('path');
 
-// Servir la carpeta frontend de forma estática usando ruta absoluta
+// 1. Servir los archivos estáticos de forma normal
 app.use(express.static(path.resolve(__dirname, '../frontend')));
 
-// Capturar el resto de rutas y servir el index.html usando ruta absoluta
-app.get('(.*)', (req, res) => {
+// 2. Middleware de captura total para el index.html (Sustituye al app.get)
+app.use((req, res, next) => {
+    // Si la petición pide algo de la API, dejamos que pase a sus rutas correspondientes
+    if (req.path.startsWith('/api')) {
+        return next();
+    }
+    // Para cualquier otra ruta del navegador, le servimos el mapa
     res.sendFile(path.resolve(__dirname, '../frontend/index.html'));
 });
 
