@@ -47,14 +47,12 @@ app.post('/api/pins', async (req, res) => {
     console.log("📥 Petición POST recibida en /api/pins. Cuerpo:", req.body);
     const { type, description, lat, lng } = req.body;
 
-    // Validación estricta para evitar que el servidor procese basura o falle
     if (!type || lat === undefined || lng === undefined) {
         console.error("❌ Validación fallida: Faltan campos obligatorios");
         return res.status(400).json({ error: 'Faltan campos obligatorios (type, lat, lng)' });
     }
 
     try {
-        // Guardamos usando la propiedad espacial POINT de MySQL para que tu consulta GET funcione perfectamente
         const query = `
             INSERT INTO pins (type, description, location, status, votes_positive, votes_negative) 
             VALUES (?, ?, ST_GeomFromText(?), 'active', 0, 0)
@@ -66,7 +64,6 @@ app.post('/api/pins', async (req, res) => {
         
         console.log("✅ Inserción en BD exitosa. ID generado:", result.insertId);
 
-        // RESPUESTA OBLIGATORIA: Desbloquea el frontend enviándole el JSON de éxito
         return res.status(201).json({
             id: result.insertId,
             message: 'Pin registrado exitosamente',
@@ -75,7 +72,6 @@ app.post('/api/pins', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error crítico al insertar el pin en MySQL:', error);
-        // Evita que el cliente se quede congelado si la consulta explota
         return res.status(500).json({ error: 'Error interno del servidor al guardar en la base de datos', details: error.message });
     }
 });
@@ -97,6 +93,20 @@ app.post('/api/pins/:id/vote', async (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Marcador no encontrado' });
         }
+
+        // --- LÓGICA COMENTADA DE CONTROL COMUNITARIO ---
+        // Buscamos el balance actual de votos del pin modificado
+        const [rows] = await pool.query('SELECT votes_positive, votes_negative FROM pins WHERE id = ?', [id]);
+        if (rows.length > 0) {
+            const { votes_positive, votes_negative } = rows[0];
+            
+            // Si la diferencia neta de la comunidad llega a -15 o menos, se desactiva
+            if ((votes_positive - votes_negative) <= -15) {
+                console.log(`🗑️ El pin ID ${id} acumuló suficiente rechazo comunitario (${votes_positive - votes_negative}). Desactivando...`);
+                await pool.execute("UPDATE pins SET status = 'inactive' WHERE id = ?", [id]);
+            }
+        }
+        // ------------------------------------------------
 
         return res.json({ message: 'Voto registrado exitosamente' });
     } catch (error) {
