@@ -208,87 +208,84 @@
 
         // 2. SEGUNDO PASO: CONFIRMACIÓN Y ENVÍO A MYSQL (CON SUPER DIAGNÓSTICO)
         function confirmarYEnviar() {
-            console.log("=== INICIO DEL FLUJO DE ENVÍO ===");
-            
-            if (!marcadorTemporal) {
-                console.error("❌ Error: No hay un marcador temporal activo en el mapa.");
-                return;
-            }
+    console.log("=== INICIO DEL FLUJO DE ENVÍO ===");
+    
+    if (!marcadorTemporal) {
+        console.error("❌ Error: No hay un marcador temporal activo.");
+        return;
+    }
 
-            const coordenadas = marcadorTemporal.getLatLng();
-            const tipo = document.getElementById('pop-type').value;
-            const description = document.getElementById('pop-desc').value;
-            const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
+    // 1. EXTRAER VALORES DEL DOM DE MANERA SEGURA
+    const elTipo = document.getElementById('pop-type');
+    const elDesc = document.getElementById('pop-desc');
+    
+    if (!elTipo) {
+        console.error("❌ Error: No se encontró el elemento 'pop-type' en el DOM.");
+        alert("Error interno del mapa. Inténtalo de nuevo.");
+        return;
+    }
 
-            console.log("📦 Payload preparado para enviar:", {
-                type: tipo,
-                description: description,
-                lng: coordenadas.lng,
-                lat: coordenadas.lat
+    const tipo = elTipo.value;
+    const description = elDesc ? elDesc.value : "";
+    const coordenadas = marcadorTemporal.getLatLng();
+    const nombreLegible = tipo.replace(/-/g, ' ').toUpperCase();
+
+    // 2. CONSTRUIR URL ABSOLUTA REAL DE PRODUCCIÓN O LOCAL
+    const URL_FINAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000/api/pins'
+        : window.location.origin + '/api/pins'; // Autocompleta con https://dominio-railway/api/pins
+
+    const payload = {
+        type: tipo,
+        description: description,
+        lng: coordenadas.lng,
+        lat: coordenadas.lat
+    };
+
+    console.log("📦 Payload listo para enviar:", payload);
+    console.log("📡 Destino del Fetch:", URL_FINAL);
+
+    // 3. CONFIRMACIÓN
+    const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
+    
+    if (!seguro) {
+        console.log("🛑 Envío cancelado por el usuario.");
+        return;
+    }
+
+    console.log("🚀 Confirmación aceptada. Lanzando Fetch definitivo...");
+
+    // 4. PETICIÓN AJAX BLINDADA
+    fetch(URL_FINAL, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(res => {
+        console.log(`📡 Respuesta de red recibida. Status HTTP: ${res.status} (${res.statusText})`);
+        if (!res.ok) {
+            return res.text().then(text => { 
+                throw new Error(`Error de servidor (${res.status}): ${text}`); 
             });
-
-            const seguro = confirm(`⚠️ ¿Estás seguro de que la información suministrada es correcta?\n\nCategoría: ${nombreLegible}\nDetalles: ${description || 'Ninguno'}`);
-            
-            if (seguro) {
-                console.log("🚀 Confirmación aceptada. Ejecutando Fetch a:", `${API_URL}/pins`);
-                
-                const payload = {
-                    type: tipo,
-                    description: description,
-                    lng: coordenadas.lng,
-                    lat: coordenadas.lat
-                };
-
-                fetch(`${API_URL}/pins`, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json' // Le decimos explícitamente al servidor que queremos JSON
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => {
-                    // CAPTURA 1: Ver el estado real del HTTP en la respuesta
-                    console.log(`📡 Servidor respondió. Status HTTP: ${res.status} (${res.statusText})`);
-                    console.log("📄 Tipo de contenido respondido:", res.headers.get("content-type"));
-
-                    if (!res.ok) {
-                        // Si el servidor responde con error (ej: 404 o 500), intentamos leer el mensaje de error
-                        return res.text().then(text => { 
-                            throw new Error(`Error del Servidor (${res.status}): ${text}`); 
-                        });
-                    }
-                    
-                    // Verificamos si la respuesta realmente viene como JSON antes de parsearla
-                    const contentType = res.headers.get("content-type");
-                    if (contentType && contentType.includes("application/json")) {
-                        return res.json();
-                    } else {
-                        return res.text().then(text => {
-                            throw new Error(`El servidor no respondió JSON. Respondió texto plano: "${text.substring(0, 100)}..."`);
-                        });
-                    }
-                })
-                .then(data => {
-                    // CAPTURA 2: Éxito total de la operación
-                    console.log("✅ ¡ÉXITO! Pin guardado correctamente en la BD:", data);
-                    
-                    map.removeLayer(marcadorTemporal);
-                    marcadorTemporal = null;
-                    
-                    console.log("🔄 Recargando todos los pines en el mapa...");
-                    cargarPines(); 
-                })
-                .catch(err => {
-                    // CAPTURA 3: Aquí caerá CUALQUIER fallo (CORS, Red, JSON roto, 500, etc.)
-                    console.error("❌ CRÍTICO - El flujo Fetch falló catastróficamente:");
-                    console.error(err);
-                    alert(`No se pudo registrar. Detalle: ${err.message}`);
-                });
-            } else {
-                console.log("🛑 Envío cancelado por el usuario.");
-            }
         }
+        return res.json();
+    })
+    .then(data => {
+        console.log("✅ ¡ÉXITO TOTAL! Pin guardado en la BD:", data);
+        map.removeLayer(marcadorTemporal);
+        marcadorTemporal = null;
+        cargarPines(); // Recargar el mapa con el nuevo pin
+        alert("📍 ¡Reporte registrado con éxito!");
+    })
+    .catch(err => {
+        console.error("❌ CRÍTICO - El Fetch falló:");
+        console.error(err);
+        alert(`No se pudo conectar con el servidor. Detalle: ${err.message}`);
+    });
+}
 
         // 3. CARGAR PINES DESDE MYSQL CON EMOJIS NATIVOS
         function cargarPines() {
